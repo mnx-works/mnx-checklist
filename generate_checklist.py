@@ -6,8 +6,14 @@ come from docs/notationref.json in w3c/mnx. Every concept whose MNX entry says
 "planned for 1.0" becomes a checklist item, grouped by the taxonomy's
 group/subgroup hierarchy.
 
+Items listed in implemented.json are checked when every schema path given for
+them exists in the MNX JSON schema. Paths are slash-separated keys from the
+schema root, e.g. "$defs/caesura/properties/shape". A final "enum/VALUE"
+segment requires VALUE to be one of the enum's values.
+
 Usage:
-    generate_checklist.py [--concepts PATH_OR_URL] [--mnx PATH_OR_URL] [-o OUT]
+    generate_checklist.py [--concepts PATH_OR_URL] [--mnx PATH_OR_URL]
+                          [--schema PATH_OR_URL] [--implemented PATH] [-o OUT]
 
 Checked boxes in an existing output file are preserved across regeneration.
 """
@@ -21,6 +27,7 @@ import urllib.request
 
 CONCEPTS_URL = "https://raw.githubusercontent.com/w3c-cg/music-notationref/main/concepts.json"
 MNX_URL = "https://raw.githubusercontent.com/w3c/mnx/main/docs/notationref.json"
+SCHEMA_URL = "https://raw.githubusercontent.com/w3c/mnx/main/docs/mnx-schema.json"
 PLANNED_MARKER = "planned for 1.0"
 
 
@@ -44,6 +51,33 @@ def read_checked_ids(path):
     return checked
 
 
+def schema_has(schema, path):
+    node = schema
+    segments = path.split("/")
+    for i, segment in enumerate(segments):
+        if segment == "enum" and i == len(segments) - 2:
+            values = node.get("enum", []) if isinstance(node, dict) else []
+            return segments[-1] in [str(v) for v in values]
+        if not isinstance(node, dict) or segment not in node:
+            return False
+        node = node[segment]
+    return True
+
+
+def read_implemented_ids(path, schema):
+    """Return ids from the implemented file whose schema paths all exist."""
+    if not os.path.exists(path):
+        return set()
+    implemented = set()
+    for item_id, paths in load_json(path).items():
+        missing = [p for p in paths if not schema_has(schema, p)]
+        if missing:
+            print(f"warning: {item_id} not checked; schema lacks {', '.join(missing)}")
+        else:
+            implemented.add(item_id)
+    return implemented
+
+
 def collect(node, support, path, out):
     """Append (path, item) for each planned item under node, in taxonomy order."""
     if node["type"] == "item":
@@ -60,16 +94,24 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--concepts", default=CONCEPTS_URL)
     parser.add_argument("--mnx", default=MNX_URL)
+    parser.add_argument("--schema", default=SCHEMA_URL)
+    parser.add_argument("--implemented", default=os.path.join(here, "implemented.json"))
     parser.add_argument("-o", "--output", default=os.path.join(here, "CHECKLIST.md"))
     args = parser.parse_args()
 
     concepts = load_json(args.concepts)
     support = load_json(args.mnx)["support"]
     checked = read_checked_ids(args.output)
+    implemented = read_implemented_ids(args.implemented, load_json(args.schema))
+    checked |= implemented
 
     planned = []
     for group in concepts:
         collect(group, support, [], planned)
+
+    planned_ids = {item["id"] for _, item in planned}
+    for item_id in sorted(implemented - planned_ids):
+        print(f"note: {item_id} is in {os.path.basename(args.implemented)} but not on the checklist")
 
     lines = [
         "# MNX v1.0 remaining work",

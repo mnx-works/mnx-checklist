@@ -1,0 +1,11 @@
+{
+  "event-caesura": ["$defs/event-markings/properties/caesura"],
+  "event-caesura-type": ["$defs/caesura/properties/shape"],
+  "struct-lines-1": ["$defs/staff-config/properties/lines"],
+  "struct-lines-2": ["$defs/staff-config/properties/lines"],
+  "struct-lines-arbitrary": ["$defs/staff-config/properties/lines"],
+  "struct-measure-number": ["$defs/measure-global/properties/number"],
+  "struct-measure-number-override": ["$defs/measure-global/properties/number"],
+  "struct-tempo-bpm": ["$defs/measure-global/properties/tempos", "$defs/tempo/properties/bpm"],
+  "struct-tempo-bpm-dotted": ["$defs/tempo/properties/value", "$defs/note-value/properties/dots"]
+}
