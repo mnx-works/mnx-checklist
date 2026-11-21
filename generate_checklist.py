@@ -7,7 +7,8 @@ come from docs/notationref.json in w3c/mnx. Every concept whose MNX entry says
 group/subgroup hierarchy.
 
 Items listed in implemented.json are checked when every schema path given for
-them exists in the MNX JSON schema. Paths are slash-separated keys from the
+them exists in the MNX JSON schema. Checked items stay on the checklist even
+after MNX's notationref.json stops marking them as planned. Paths are slash-separated keys from the
 schema root, e.g. "$defs/caesura/properties/shape". A final "enum/VALUE"
 segment requires VALUE to be one of the enum's values.
 
@@ -78,15 +79,15 @@ def read_implemented_ids(path, schema):
     return implemented
 
 
-def collect(node, support, path, out):
-    """Append (path, item) for each planned item under node, in taxonomy order."""
+def collect(node, support, keep, path, out):
+    """Append (path, item) for each planned or kept item under node, in taxonomy order."""
     if node["type"] == "item":
         entry = support.get(node["id"])
-        if entry and PLANNED_MARKER in entry.get("text", ""):
+        if node["id"] in keep or (entry and PLANNED_MARKER in entry.get("text", "")):
             out.append((tuple(path), node))
         return
     for child in node.get("items", []):
-        collect(child, support, path + [node["name"]], out)
+        collect(child, support, keep, path + [node["name"]], out)
 
 
 def main():
@@ -107,11 +108,11 @@ def main():
 
     planned = []
     for group in concepts:
-        collect(group, support, [], planned)
+        collect(group, support, checked, [], planned)
 
     planned_ids = {item["id"] for _, item in planned}
     for item_id in sorted(implemented - planned_ids):
-        print(f"note: {item_id} is in {os.path.basename(args.implemented)} but not on the checklist")
+        print(f"note: {item_id} is in {os.path.basename(args.implemented)} but not in the taxonomy")
 
     lines = [
         "# MNX v1.0 remaining work",
@@ -120,7 +121,7 @@ def main():
         f"{datetime.date.today().isoformat()} from the "
         "[notationref](https://w3c-cg.github.io/music-notationref/) taxonomy. "
         f"Each item is a concept that MNX's `docs/notationref.json` marks as "
-        f"\"{PLANNED_MARKER}\". Checked boxes survive regeneration.",
+        f"\"{PLANNED_MARKER}\", plus items already checked off. Checked boxes survive regeneration.",
         "",
         f"**{len(planned)} items** "
         f"({sum(1 for _, item in planned if item['id'] in checked)} checked)",
